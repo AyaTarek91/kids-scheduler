@@ -38,7 +38,7 @@ node cli.js event delete <id>
 
 Each route file owns its full CRUD plus a `/today` GET that filters by the current day/date. The frontend (`public/index.html`) is a single self-contained file — all JS is inline, no build step. It fetches `/api/schedule`, `/api/schedule/today`, `/api/one-off`, and `/api/one-off/today` directly.
 
-**Cron/email (`cron.js`)** runs independently from the web server — start it as a separate process alongside `server.js`. It imports `db.js` directly (same SQLite file, same process-local in-memory state is fine because better-sqlite3 is synchronous). Email is sent via Resend SDK.
+**Cron/email (`cron.js`)** runs independently from the web server — start it as a separate process alongside `server.js`. It imports `db.js` directly and awaits the shared `pg.Pool`, so it reads the same Railway Postgres as the web server. Email is sent via Resend SDK.
 
 ## Environment
 
