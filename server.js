@@ -1,4 +1,5 @@
 require('dotenv').config();
+require('./cron'); // runs the daily digest scheduler in this same process
 const express = require('express');
 const path = require('path');
 const app = express();

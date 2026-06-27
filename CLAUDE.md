@@ -5,8 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm start          # Start the Express web server (port 3000)
-node cron.js       # Start the daily 9am (Africa/Cairo) email digest scheduler
+npm start          # Start the Express web server (port 3000) — also runs the daily 9am digest scheduler in-process
 node cron.js --now # Send the digest immediately (for testing)
 node cli.js --help # CLI entry point
 ```
@@ -38,7 +37,7 @@ node cli.js event delete <id>
 
 Each route file owns its full CRUD plus a `/today` GET that filters by the current day/date. The frontend (`public/index.html`) is a single self-contained file — all JS is inline, no build step. It fetches `/api/schedule`, `/api/schedule/today`, `/api/one-off`, and `/api/one-off/today` directly.
 
-**Cron/email (`cron.js`)** runs independently from the web server — start it as a separate process alongside `server.js`. It imports `db.js` directly and awaits the shared `pg.Pool`, so it reads the same Railway Postgres as the web server. Email is sent via Resend SDK.
+**Cron/email (`cron.js`)** runs in the same process as the web server — `server.js` does `require('./cron')` at startup, so the 9am scheduler registers when you `npm start`. One process, one Railway service. `cron.js` imports `db.js` directly (same shared `pg.Pool` / Railway Postgres) and sends email via the Resend SDK. The `--now` branch keys off `process.argv`, so importing it from the server only registers the scheduler and doesn't fire a send; `node cron.js --now` still works standalone for testing.
 
 ## Environment
 
