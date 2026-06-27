@@ -17,7 +17,10 @@ function fmt(t) {
 async function buildEmail() {
   const now = new Date();
   const today = DAYS[now.getDay()];
-  const todayDate = now.toISOString().slice(0, 10);
+  // Local date (YYYY-MM-DD) respecting the process TZ — toISOString() returns
+  // UTC, which is off-by-one for timezones ahead of UTC and drops today's
+  // one-off events from the digest.
+  const todayDate = now.toLocaleDateString('en-CA');
 
   const recurring = (await db.query(
     'SELECT * FROM schedule WHERE day_of_week = $1 ORDER BY start_time', [today]

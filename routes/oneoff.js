@@ -10,7 +10,10 @@ router.get('/', async (req, res) => {
 
 // GET /api/one-off/today - today's one-off items
 router.get('/today', async (req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
+  // Local date (YYYY-MM-DD) respecting the process TZ — toISOString() would
+  // return UTC, which is off-by-one for timezones ahead of UTC (e.g. Cairo)
+  // and would miss events stored with today's local date.
+  const today = new Date().toLocaleDateString('en-CA');
   const { rows } = await db.query(
     'SELECT * FROM one_off_items WHERE date = $1 ORDER BY time', [today]
   );
