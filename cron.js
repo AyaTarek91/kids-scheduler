@@ -129,11 +129,16 @@ async function sendDigest() {
 }
 
 // Run at 9:00 AM every day
-cron.schedule('0 9 * * *', sendDigest, {
-  timezone: process.env.TZ || 'America/New_York'
-});
+const DIGEST_CRON = '0 9 * * *';
+const DIGEST_TZ = process.env.TZ || 'America/New_York';
 
-console.log('[cron] Daily digest scheduled for 9:00 AM');
+if (!cron.validate(DIGEST_CRON)) {
+  throw new Error(`[cron] Invalid cron expression: ${DIGEST_CRON}`);
+}
+
+cron.schedule(DIGEST_CRON, sendDigest, { timezone: DIGEST_TZ });
+
+console.log(`[cron] Daily digest scheduled — "${DIGEST_CRON}" (9:00 AM) in timezone ${DIGEST_TZ}`);
 
 // Manual trigger: node cron.js --now
 if (process.argv.includes('--now')) {
