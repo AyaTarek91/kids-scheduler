@@ -14,18 +14,18 @@ function fmt(t) {
   return `${hh % 12 || 12}:${m} ${hh < 12 ? 'AM' : 'PM'}`;
 }
 
-function buildEmail() {
+async function buildEmail() {
   const now = new Date();
   const today = DAYS[now.getDay()];
   const todayDate = now.toISOString().slice(0, 10);
 
-  const recurring = db.prepare(
-    'SELECT * FROM schedule WHERE day_of_week = ? ORDER BY start_time'
-  ).all(today);
+  const recurring = (await db.query(
+    'SELECT * FROM schedule WHERE day_of_week = $1 ORDER BY start_time', [today]
+  )).rows;
 
-  const oneoffs = db.prepare(
-    'SELECT * FROM one_off_items WHERE date = ? ORDER BY time'
-  ).all(todayDate);
+  const oneoffs = (await db.query(
+    'SELECT * FROM one_off_items WHERE date = $1 ORDER BY time', [todayDate]
+  )).rows;
 
   const dateStr = now.toLocaleDateString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
@@ -114,7 +114,7 @@ async function sendDigest() {
   const recipients = process.env.NOTIFY_EMAIL.split(',').map(e => e.trim()).filter(Boolean);
 
   try {
-    const { subject, html } = buildEmail();
+    const { subject, html } = await buildEmail();
     const { data, error } = await resend.emails.send({
       from:    'Kids Scheduler <onboarding@resend.dev>',
       to:      recipients,

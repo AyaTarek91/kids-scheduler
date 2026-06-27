@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+require('dotenv').config();
 const { Command } = require('commander');
 const db = require('./db');
 
@@ -16,15 +17,15 @@ sched.command('list')
   .description('List all recurring schedule items')
   .option('-d, --day <day>', 'Filter by day of week')
   .option('-c, --child <name>', 'Filter by child name')
-  .action(opts => {
+  .action(async opts => {
     let query = 'SELECT * FROM schedule';
     const params = [];
     const where = [];
-    if (opts.day) { where.push('day_of_week = ?'); params.push(opts.day); }
-    if (opts.child) { where.push('child_name LIKE ?'); params.push(`%${opts.child}%`); }
+    if (opts.day) { params.push(opts.day); where.push(`day_of_week = $${params.length}`); }
+    if (opts.child) { params.push(`%${opts.child}%`); where.push(`child_name ILIKE $${params.length}`); }
     if (where.length) query += ' WHERE ' + where.join(' AND ');
     query += ' ORDER BY day_of_week, start_time';
-    const rows = db.prepare(query).all(...params);
+    const { rows } = await db.query(query, params);
     if (rows.length === 0) { console.log('No items found.'); return; }
     console.table(rows.map(r => ({
       ID: r.id, Child: r.child_name, Activity: r.activity,
@@ -40,14 +41,15 @@ sched.command('add')
   .requiredOption('-s, --start <time>', 'Start time (HH:MM)')
   .requiredOption('-e, --end <time>', 'End time (HH:MM)')
   .option('-n, --notes <notes>', 'Optional notes', '')
-  .action(opts => {
+  .action(async opts => {
     if (!DAYS.includes(opts.day)) {
       console.error(`Invalid day. Must be one of: ${DAYS.join(', ')}`); process.exit(1);
     }
-    const result = db.prepare(
-      'INSERT INTO schedule (child_name, activity, day_of_week, start_time, end_time, notes) VALUES (?,?,?,?,?,?)'
-    ).run(opts.child, opts.activity, opts.day, opts.start, opts.end, opts.notes);
-    console.log(`Added schedule item with ID ${result.lastInsertRowid}`);
+    const { rows } = await db.query(
+      'INSERT INTO schedule (child_name, activity, day_of_week, start_time, end_time, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+      [opts.child, opts.activity, opts.day, opts.start, opts.end, opts.notes]
+    );
+    console.log(`Added schedule item with ID ${rows[0].id}`);
   });
 
 sched.command('edit <id>')
@@ -58,8 +60,8 @@ sched.command('edit <id>')
   .option('-s, --start <time>', 'Start time (HH:MM)')
   .option('-e, --end <time>', 'End time (HH:MM)')
   .option('-n, --notes <notes>', 'Notes')
-  .action((id, opts) => {
-    const existing = db.prepare('SELECT * FROM schedule WHERE id = ?').get(id);
+  .action(async (id, opts) => {
+    const existing = (await db.query('SELECT * FROM schedule WHERE id = $1', [id])).rows[0];
     if (!existing) { console.error(`No schedule item with ID ${id}`); process.exit(1); }
     const updated = {
       child_name:  opts.child    || existing.child_name,
@@ -69,18 +71,19 @@ sched.command('edit <id>')
       end_time:    opts.end      || existing.end_time,
       notes:       opts.notes !== undefined ? opts.notes : existing.notes
     };
-    db.prepare(
-      'UPDATE schedule SET child_name=?, activity=?, day_of_week=?, start_time=?, end_time=?, notes=? WHERE id=?'
-    ).run(updated.child_name, updated.activity, updated.day_of_week, updated.start_time, updated.end_time, updated.notes, id);
+    await db.query(
+      'UPDATE schedule SET child_name=$1, activity=$2, day_of_week=$3, start_time=$4, end_time=$5, notes=$6 WHERE id=$7',
+      [updated.child_name, updated.activity, updated.day_of_week, updated.start_time, updated.end_time, updated.notes, id]
+    );
     console.log(`Updated schedule item ${id}`);
   });
 
 sched.command('delete <id>')
   .alias('del')
   .description('Delete a recurring schedule item')
-  .action(id => {
-    const r = db.prepare('DELETE FROM schedule WHERE id = ?').run(id);
-    if (r.changes === 0) { console.error(`No schedule item with ID ${id}`); process.exit(1); }
+  .action(async id => {
+    const r = await db.query('DELETE FROM schedule WHERE id = $1', [id]);
+    if (r.rowCount === 0) { console.error(`No schedule item with ID ${id}`); process.exit(1); }
     console.log(`Deleted schedule item ${id}`);
   });
 
@@ -94,16 +97,16 @@ oo.command('list')
   .option('--date <date>', 'Filter by date (YYYY-MM-DD)')
   .option('-c, --child <name>', 'Filter by child name')
   .option('--upcoming', 'Show only upcoming events')
-  .action(opts => {
+  .action(async opts => {
     let query = 'SELECT * FROM one_off_items';
     const params = [];
     const where = [];
-    if (opts.date) { where.push('date = ?'); params.push(opts.date); }
-    if (opts.child) { where.push('child_name LIKE ?'); params.push(`%${opts.child}%`); }
-    if (opts.upcoming) { where.push('date >= ?'); params.push(new Date().toISOString().slice(0,10)); }
+    if (opts.date) { params.push(opts.date); where.push(`date = $${params.length}`); }
+    if (opts.child) { params.push(`%${opts.child}%`); where.push(`child_name ILIKE $${params.length}`); }
+    if (opts.upcoming) { params.push(new Date().toISOString().slice(0,10)); where.push(`date >= $${params.length}`); }
     if (where.length) query += ' WHERE ' + where.join(' AND ');
     query += ' ORDER BY date, time';
-    const rows = db.prepare(query).all(...params);
+    const { rows } = await db.query(query, params);
     if (rows.length === 0) { console.log('No events found.'); return; }
     console.table(rows.map(r => ({
       ID: r.id, Title: r.title, Child: r.child_name, Date: r.date, Time: r.time, Notes: r.notes
@@ -117,11 +120,12 @@ oo.command('add')
   .requiredOption('-T, --time <time>', 'Time (HH:MM)')
   .option('-c, --child <name>', 'Child name (optional)', '')
   .option('-n, --notes <notes>', 'Optional notes', '')
-  .action(opts => {
-    const result = db.prepare(
-      'INSERT INTO one_off_items (title, child_name, date, time, notes) VALUES (?,?,?,?,?)'
-    ).run(opts.title, opts.child, opts.date, opts.time, opts.notes);
-    console.log(`Added one-off event with ID ${result.lastInsertRowid}`);
+  .action(async opts => {
+    const { rows } = await db.query(
+      'INSERT INTO one_off_items (title, child_name, date, time, notes) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+      [opts.title, opts.child, opts.date, opts.time, opts.notes]
+    );
+    console.log(`Added one-off event with ID ${rows[0].id}`);
   });
 
 oo.command('edit <id>')
@@ -131,8 +135,8 @@ oo.command('edit <id>')
   .option('-d, --date <date>', 'Date (YYYY-MM-DD)')
   .option('-T, --time <time>', 'Time (HH:MM)')
   .option('-n, --notes <notes>', 'Notes')
-  .action((id, opts) => {
-    const existing = db.prepare('SELECT * FROM one_off_items WHERE id = ?').get(id);
+  .action(async (id, opts) => {
+    const existing = (await db.query('SELECT * FROM one_off_items WHERE id = $1', [id])).rows[0];
     if (!existing) { console.error(`No event with ID ${id}`); process.exit(1); }
     const updated = {
       title: opts.title || existing.title,
@@ -141,18 +145,19 @@ oo.command('edit <id>')
       time:  opts.time  || existing.time,
       notes: opts.notes !== undefined ? opts.notes : existing.notes
     };
-    db.prepare(
-      'UPDATE one_off_items SET title=?, child_name=?, date=?, time=?, notes=? WHERE id=?'
-    ).run(updated.title, updated.child_name, updated.date, updated.time, updated.notes, id);
+    await db.query(
+      'UPDATE one_off_items SET title=$1, child_name=$2, date=$3, time=$4, notes=$5 WHERE id=$6',
+      [updated.title, updated.child_name, updated.date, updated.time, updated.notes, id]
+    );
     console.log(`Updated event ${id}`);
   });
 
 oo.command('delete <id>')
   .alias('del')
   .description('Delete a one-off event')
-  .action(id => {
-    const r = db.prepare('DELETE FROM one_off_items WHERE id = ?').run(id);
-    if (r.changes === 0) { console.error(`No event with ID ${id}`); process.exit(1); }
+  .action(async id => {
+    const r = await db.query('DELETE FROM one_off_items WHERE id = $1', [id]);
+    if (r.rowCount === 0) { console.error(`No event with ID ${id}`); process.exit(1); }
     console.log(`Deleted event ${id}`);
   });
 
@@ -160,17 +165,17 @@ oo.command('delete <id>')
 
 program.command('today')
   .description('Show today\'s full agenda')
-  .action(() => {
+  .action(async () => {
     const DAYS_JS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     const today = DAYS_JS[new Date().getDay()];
     const todayDate = new Date().toISOString().slice(0,10);
 
-    const recurring = db.prepare(
-      'SELECT * FROM schedule WHERE day_of_week = ? ORDER BY start_time'
-    ).all(today);
-    const oneoffs = db.prepare(
-      'SELECT * FROM one_off_items WHERE date = ? ORDER BY time'
-    ).all(todayDate);
+    const recurring = (await db.query(
+      'SELECT * FROM schedule WHERE day_of_week = $1 ORDER BY start_time', [today]
+    )).rows;
+    const oneoffs = (await db.query(
+      'SELECT * FROM one_off_items WHERE date = $1 ORDER BY time', [todayDate]
+    )).rows;
 
     console.log(`\n=== Today's Agenda (${today}, ${todayDate}) ===\n`);
 
@@ -189,4 +194,8 @@ program.command('today')
     }
   });
 
-program.parse(process.argv);
+// parseAsync waits for the async command handlers; the pg pool keeps the event
+// loop alive, so close it once the command finishes.
+program.parseAsync(process.argv)
+  .then(() => db.pool.end())
+  .catch(err => { console.error(err.message); db.pool.end().finally(() => process.exit(1)); });
