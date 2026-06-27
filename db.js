@@ -40,9 +40,34 @@ const schema = `
   ALTER TABLE one_off_items ADD COLUMN IF NOT EXISTS child_name TEXT DEFAULT '';
 `;
 
-// Kick off schema creation once. Every query waits on this so callers never race
-// the first connection — no entry point has to remember to await it explicitly.
-const ready = pool.query(schema);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Railway's private network (*.railway.internal) can take a few seconds to become
+// resolvable after the container starts, so the very first connection may fail with
+// ENOTFOUND. Retry the schema/connect with backoff instead of crashing on boot.
+async function init(attempt = 1) {
+  const MAX_ATTEMPTS = 10;
+  try {
+    await pool.query(schema);
+    if (attempt > 1) console.log(`[db] connected on attempt ${attempt}`);
+  } catch (err) {
+    if (attempt >= MAX_ATTEMPTS) {
+      console.error(`[db] could not connect after ${MAX_ATTEMPTS} attempts: ${err.message}`);
+      throw err;
+    }
+    const delay = Math.min(1000 * attempt, 5000);
+    console.warn(`[db] connect attempt ${attempt} failed (${err.code || err.message}); retrying in ${delay}ms`);
+    await sleep(delay);
+    return init(attempt + 1);
+  }
+}
+
+// Every query waits on this so callers never race the first connection — no entry
+// point has to remember to await it explicitly.
+const ready = init();
+// Keep a transient boot failure from crashing the process as an unhandled rejection
+// before any query attaches its own handler; real failures still surface via query().
+ready.catch(() => {});
 
 async function query(text, params) {
   await ready;
