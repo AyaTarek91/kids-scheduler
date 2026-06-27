@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm start          # Start the Express web server (port 3000)
-node cron.js       # Start the daily 7am email digest scheduler
+node cron.js       # Start the daily 9am (Africa/Cairo) email digest scheduler
 node cron.js --now # Send the digest immediately (for testing)
 node cli.js --help # CLI entry point
 ```
@@ -43,7 +43,7 @@ Each route file owns its full CRUD plus a `/today` GET that filters by the curre
 Copy `.env.example` to `.env`. Required for email:
 - `RESEND_API_KEY` — from resend.com
 - `NOTIFY_EMAIL` — digest recipient
-- `TZ` — IANA timezone for the 7am cron (e.g. `Africa/Cairo`, **not** `Egypt/Cairo`)
+- `TZ` — IANA timezone for the 9am cron (e.g. `Africa/Cairo`, **not** `Egypt/Cairo`)
 
 `dotenv` is loaded at the top of `server.js` and `cron.js`. The CLI (`cli.js`) does not need it.
 
