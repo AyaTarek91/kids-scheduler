@@ -1,0 +1,30 @@
+{
+  "name": "kids-scheduler",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "bin": {
+    "scheduler": "./cli.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "cron": "node cron.js",
+    "cli": "node cli.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "commander": "^15.0.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "node-cron": "^4.5.0",
+    "nodemailer": "^9.0.1",
+    "resend": "^6.16.0"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true
+  }
+}

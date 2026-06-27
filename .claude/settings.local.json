@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cd \"E:\\\\Claude Code\\\\kids-scheduler\"; $proc = Start-Process -FilePath \"node\" -ArgumentList \"server.js\" -PassThru -NoNewWindow; Start-Sleep -Seconds 3; try { $r = Invoke-WebRequest -Uri \"http://localhost:3000/api/schedule\" -UseBasicParsing -TimeoutSec 5; \"Status: $\\($r.StatusCode\\) | Body: $\\($r.Content\\)\" } catch { \"Request failed: $_\" } finally { $proc.Kill\\(\\) })",
+      "Skill(run)",
+      "PowerShell(Start-Sleep -Seconds 2; try { \\(Invoke-WebRequest -Uri \"http://localhost:3000/api/schedule\" -UseBasicParsing -TimeoutSec 5\\).StatusCode } catch { \"not ready\" })",
+      "mcp__chrome-devtools__new_page",
+      "mcp__chrome-devtools__take_screenshot",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__evaluate_script",
+      "mcp__chrome-devtools__list_console_messages",
+      "mcp__chrome-devtools__get_console_message",
+      "mcp__chrome-devtools__list_network_requests"
+    ]
+  }
+}
