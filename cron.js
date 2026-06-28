@@ -3,7 +3,9 @@ const cron = require('node-cron');
 const { Resend } = require('resend');
 const db = require('./db');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Constructed lazily inside sendDigest — `new Resend()` throws when the API key is
+// missing, and this module is require()d by the web server at boot, so building it
+// eagerly would crash the whole site whenever RESEND_API_KEY isn't set.
 
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
@@ -117,6 +119,8 @@ async function sendDigest() {
   }
 
   const recipients = process.env.NOTIFY_EMAIL.split(',').map(e => e.trim()).filter(Boolean);
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
 
   try {
     const { subject, html } = await buildEmail();
