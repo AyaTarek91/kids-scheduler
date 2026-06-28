@@ -98,6 +98,15 @@
     .today-card .time { font-size: 0.8rem; color: var(--slate); font-weight: 600; }
     .today-card .note { font-size: 0.76rem; color: #94a3b8; margin-top: 0.3rem; }
 
+    /* Today's agenda items whose time has already passed: greyed and sunk below
+       the upcoming ones, mirroring the one-off table's past-event treatment. */
+    .today-card.past { background: #e4e6ec; border-color: #d2d5de; box-shadow: none; }
+    .today-card.past::before { background: #a8adba; }
+    .today-card.past:hover { transform: none; box-shadow: none; }
+    .today-card.past .child { color: #767c8a; }
+    .today-card.past .activity { color: #767c8a; text-decoration: line-through; text-decoration-color: #aab0bd; }
+    .today-card.past .time, .today-card.past .note { color: #888e9c; }
+
     .empty { color: #a0a8c0; font-style: italic; font-size: 0.9rem; font-weight: 600; }
 
     /* ---- FILTER SIDEBAR ---- */
@@ -449,10 +458,16 @@ async function loadToday() {
     fetch('/api/schedule/today').then(r => r.json()),
     fetch('/api/one-off/today').then(r => r.json())
   ]);
+  const todayDate = todayLocal();
+  // An item is "past" once its end time today (or its start, if it has none —
+  // e.g. a one-off) has slipped behind the current local time. Past items are
+  // greyed in place — the order stays purely chronological, not reshuffled.
   const all = [
     ...sched.map(x => ({ ...x, _type: 'recurring' })),
     ...oo.map(x => ({ ...x, activity: x.title, start_time: x.time, _type: 'oneoff' }))
-  ].sort((a, b) => a.start_time.localeCompare(b.start_time));
+  ]
+    .map(x => ({ ...x, _past: isPastDateTime(todayDate, x.end_time || x.start_time) }))
+    .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
   const childFilter = document.getElementById('filter-child').value.toLowerCase();
   const filtered = childFilter
@@ -472,8 +487,8 @@ async function loadToday() {
       ? (item.child_name ? `${item.child_name} · One-Off` : 'One-Off')
       : item.child_name;
     return `
-    <div class="today-card ${item._type === 'oneoff' ? 'oneoff' : ''}">
-      <div class="child">${label}</div>
+    <div class="today-card ${item._type === 'oneoff' ? 'oneoff' : ''} ${item._past ? 'past' : ''}">
+      <div class="child">${label}${item._past ? '<span class="past-pill">Past</span>' : ''}</div>
       <div class="activity">${item.activity}</div>
       <div class="time">${fmt(item.start_time)}${item.end_time ? ' – ' + fmt(item.end_time) : ''}</div>
       ${item.notes ? `<div class="note">${item.notes}</div>` : ''}
