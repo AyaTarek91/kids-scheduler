@@ -113,28 +113,42 @@ async function sendDigest() {
     console.warn('[cron] RESEND_API_KEY not configured — skipping digest');
     return;
   }
-  if (!process.env.NOTIFY_EMAIL) {
-    console.warn('[cron] NOTIFY_EMAIL not set — skipping digest');
+  if (!process.env.NOTIFY_EMAILS) {
+    console.warn('[cron] NOTIFY_EMAILS not set — skipping digest');
     return;
   }
 
-  const recipients = process.env.NOTIFY_EMAIL.split(',').map(e => e.trim()).filter(Boolean);
+  const recipients = process.env.NOTIFY_EMAILS.split(',').map(e => e.trim()).filter(Boolean);
+  if (recipients.length === 0) {
+    console.warn('[cron] NOTIFY_EMAILS is empty — skipping digest');
+    return;
+  }
 
   const resend = new Resend(process.env.RESEND_API_KEY);
 
-  try {
-    const { subject, html } = await buildEmail();
-    const { data, error } = await resend.emails.send({
-      from:    'Kids Scheduler <onboarding@resend.dev>',
-      to:      recipients,
-      subject,
-      html
-    });
-    if (error) throw new Error(error.message);
-    console.log(`[cron] Digest sent (id: ${data.id}): "${subject}"`);
-  } catch (err) {
-    console.error('[cron] Failed to send digest:', err.message);
+  // Build the digest once — it's identical for everyone — then send a separate
+  // email per recipient so addresses aren't exposed to each other and one bad
+  // recipient doesn't sink the whole batch.
+  const { subject, html } = await buildEmail();
+
+  let sent = 0;
+  for (const to of recipients) {
+    try {
+      const { data, error } = await resend.emails.send({
+        from: 'Kids Scheduler <schedule@kidsscheduler.com>',
+        to,
+        subject,
+        html
+      });
+      if (error) throw new Error(error.message);
+      sent++;
+      console.log(`[cron] Digest sent to ${to} (id: ${data.id})`);
+    } catch (err) {
+      console.error(`[cron] Failed to send digest to ${to}:`, err.message);
+    }
   }
+
+  console.log(`[cron] Digest run complete — ${sent}/${recipients.length} sent: "${subject}"`);
 }
 
 // Run at 9:00 AM every day

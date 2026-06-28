@@ -45,7 +45,7 @@ Each route file owns its full CRUD plus a `/today` GET that filters by the curre
 
 Copy `.env.example` to `.env`. Required for email:
 - `RESEND_API_KEY` — from resend.com
-- `NOTIFY_EMAIL` — digest recipient
+- `NOTIFY_EMAILS` — digest recipient(s); comma-separated list, each addressee gets their own email
 - `TZ` — IANA timezone for the 9am cron (e.g. `Africa/Cairo`, **not** `Egypt/Cairo`)
 
 `dotenv` is loaded at the top of `server.js`, `cron.js`, **and `cli.js`** — the CLI now needs `DATABASE_URL`.
@@ -62,4 +62,5 @@ It reads the local `scheduler.db` and copies all rows into Postgres, preserving 
 - `day_of_week` must be one of the exact strings: `Monday Tuesday Wednesday Thursday Friday Saturday Sunday` — enforced by a Postgres CHECK constraint (a violation rejects as a 500 via Express 5's async error forwarding).
 - `date` fields are stored as `YYYY-MM-DD` text; `time` fields as `HH:MM` text. No Date objects in the DB layer.
 - `pg` is pure JS (no native build). `better-sqlite3` remains only as a devDependency for the migration script and is not installed in Railway's production build.
-- The Resend `from` address must be a verified domain in your Resend account, or use `onboarding@resend.dev` for testing (only delivers to the account owner's email).
+- The digest sends from `schedule@kidsscheduler.com` (`cron.js`). That domain **must be verified in your Resend account** or sends fail; for local testing without a verified domain, swap in `onboarding@resend.dev` (only delivers to the account owner's email).
+- The digest sends **one email per recipient** (a loop in `sendDigest`), not a single multi-recipient send — so addresses aren't exposed to each other and one bad address doesn't fail the batch.
