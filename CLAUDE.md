@@ -48,6 +48,9 @@ Copy `.env.example` to `.env`. Required for email:
 - `NOTIFY_EMAILS` — digest recipient(s); comma-separated list, each addressee gets their own email
 - `TZ` — IANA timezone for the 9am cron (e.g. `Africa/Cairo`, **not** `Egypt/Cairo`)
 
+Optional:
+- `APP_URL` — public URL of the deployed app; used for the "Open app" link in the digest email (defaults to `http://localhost:3000`).
+
 `dotenv` is loaded at the top of `server.js`, `cron.js`, **and `cli.js`** — the CLI now needs `DATABASE_URL`.
 
 ### Migrating data from the old SQLite file
