@@ -150,6 +150,18 @@
     .btn-edit { background: var(--purple-soft); color: var(--purple); }
     .btn-del  { background: #fee2e2; color: #dc2626; }
 
+    /* Past one-off events: greyed during the 7-day grace window before they
+       drop off the board entirely (server stops returning them after that). */
+    tr.past td { background: #fafafa; color: #9aa0ad; }
+    tr.past td strong { color: #9aa0ad; font-weight: 600; }
+    tr.past .title-text { text-decoration: line-through; text-decoration-color: #c4c8d2; }
+    tr.past .actions button { opacity: .6; }
+    .past-pill {
+      display: inline-block; margin-left: 8px; padding: 2px 9px; border-radius: 999px;
+      font-size: 0.65rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+      background: #eef0f4; color: #9aa0ad; vertical-align: middle;
+    }
+
     /* ---- FORM CARD ---- */
     .card {
       background: var(--card); border-radius: 20px; padding: 1.6rem;
@@ -564,9 +576,19 @@ function renderOneOff() {
     tbody.innerHTML = `<tr><td colspan="6" class="empty" style="padding:1rem">${msg}</td></tr>`;
     return;
   }
-  tbody.innerHTML = rows.map(r => `
-    <tr>
-      <td><strong>${r.title}</strong></td>
+  // Events whose date+time has already passed are greyed and sink below the
+  // upcoming ones. The server only sends events from the last 7 days onward, so
+  // anything past here is still inside its grace window before it drops off.
+  const sorted = rows
+    .map(r => ({ ...r, _past: isPastDateTime(r.date, r.time) }))
+    .sort((a, b) => {
+      if (a._past !== b._past) return a._past ? 1 : -1;        // upcoming first
+      const k = a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
+      return a._past ? -k : k;  // upcoming soonest-first, past most-recent-first
+    });
+  tbody.innerHTML = sorted.map(r => `
+    <tr class="${r._past ? 'past' : ''}">
+      <td><strong class="title-text">${r.title}</strong>${r._past ? '<span class="past-pill">Past</span>' : ''}</td>
       <td>${r.child_name || '<span style="color:#c4b5fd">—</span>'}</td>
       <td>${r.date}</td>
       <td>${fmt(r.time)}</td>

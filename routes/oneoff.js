@@ -2,9 +2,18 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// GET /api/one-off - all one-off items
+// GET /api/one-off - one-off items still relevant to the board.
+// Past events linger for a 1-week grace period after their date, then drop off
+// the board (rows are kept in the DB, just not returned here). Uses local date
+// (process TZ) to match how dates are stored; `date` is YYYY-MM-DD text, which
+// sorts/compares lexicographically, so a string >= comparison is correct.
 router.get('/', async (req, res) => {
-  const { rows } = await db.query('SELECT * FROM one_off_items ORDER BY date, time');
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 7);
+  const cutoffDate = cutoff.toLocaleDateString('en-CA');
+  const { rows } = await db.query(
+    'SELECT * FROM one_off_items WHERE date >= $1 ORDER BY date, time', [cutoffDate]
+  );
   res.json(rows);
 });
 

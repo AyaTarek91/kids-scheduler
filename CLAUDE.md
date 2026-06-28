@@ -37,6 +37,8 @@ node cli.js event delete <id>
 
 Each route file owns its full CRUD plus a `/today` GET that filters by the current day/date. The frontend (`public/index.html`) is a single self-contained file — all JS is inline, no build step. It fetches `/api/schedule`, `/api/schedule/today`, `/api/one-off`, and `/api/one-off/today` directly.
 
+**One-off events age off the board, but are never deleted.** `GET /api/one-off` only returns events whose `date` is within the last 7 days or in the future (`date >= today − 7d`, computed in local/TZ time); older rows stay in Postgres but stop appearing. Within that 7-day grace window, an event whose date+time has already passed renders **greyed-out** (struck-through, "PAST" pill, sorted below upcoming items) — see `renderOneOff` in `index.html`. So a past event lingers greyed for a week, then silently drops off the list. The `/today` board and all CRUD are unaffected.
+
 **Cron/email (`cron.js`)** runs in the same process as the web server — `server.js` does `require('./cron')` at startup, so the 9am scheduler registers when you `npm start`. One process, one Railway service. `cron.js` imports `db.js` directly (same shared `pg.Pool` / Railway Postgres) and sends email via the Resend SDK. The `--now` branch keys off `process.argv`, so importing it from the server only registers the scheduler and doesn't fire a send; `node cron.js --now` still works standalone for testing.
 
 ## Environment
