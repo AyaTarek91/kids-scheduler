@@ -7,6 +7,8 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
+const APP_URL = process.env.APP_URL || 'http://localhost:3000';
+
 function fmt(t) {
   if (!t) return '';
   const [h, m] = t.split(':');
@@ -94,7 +96,7 @@ async function buildEmail() {
         </div>
 
         <div style="background:#f8f9ff;padding:12px 28px;border-top:1px solid #eee;font-size:0.75rem;color:#aaa;text-align:center">
-          Sent by Kids Scheduler • <a href="http://localhost:3000" style="color:#667eea">Open app</a>
+          Sent by Kids Scheduler • <a href="${APP_URL}" style="color:#667eea">Open app</a>
         </div>
 
       </div>
@@ -133,15 +135,35 @@ async function sendDigest() {
 
 // Run at 9:00 AM every day
 const DIGEST_CRON = '0 9 * * *';
-const DIGEST_TZ = process.env.TZ || 'America/New_York';
+const FALLBACK_TZ = 'America/New_York';
 
-if (!cron.validate(DIGEST_CRON)) {
-  throw new Error(`[cron] Invalid cron expression: ${DIGEST_CRON}`);
+// Validate the configured TZ before handing it to node-cron. An invalid IANA name
+// (e.g. "Egypt/Cairo" instead of "Africa/Cairo") makes cron.schedule throw, and
+// since the web server require()s this module at boot, that throw would take the
+// whole website down. Fall back to a known-good zone instead of crashing.
+function resolveTimezone(tz) {
+  if (!tz) return FALLBACK_TZ;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    return tz;
+  } catch {
+    console.error(`[cron] Invalid TZ "${tz}" — falling back to ${FALLBACK_TZ}. Use an IANA name like Africa/Cairo.`);
+    return FALLBACK_TZ;
+  }
 }
 
-cron.schedule(DIGEST_CRON, sendDigest, { timezone: DIGEST_TZ });
+const DIGEST_TZ = resolveTimezone(process.env.TZ);
 
-console.log(`[cron] Daily digest scheduled — "${DIGEST_CRON}" (9:00 AM) in timezone ${DIGEST_TZ}`);
+// Never let a scheduler-setup failure crash the process that also serves the website.
+try {
+  if (!cron.validate(DIGEST_CRON)) {
+    throw new Error(`Invalid cron expression: ${DIGEST_CRON}`);
+  }
+  cron.schedule(DIGEST_CRON, sendDigest, { timezone: DIGEST_TZ });
+  console.log(`[cron] Daily digest scheduled — "${DIGEST_CRON}" (9:00 AM) in timezone ${DIGEST_TZ}`);
+} catch (err) {
+  console.error(`[cron] Failed to schedule digest (${err.message}) — continuing without it.`);
+}
 
 // Manual trigger: node cron.js --now
 if (process.argv.includes('--now')) {
